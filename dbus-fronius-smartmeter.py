@@ -146,6 +146,7 @@ class DbusFroniusService:
         log.error('Error running update %s' % e)
         self._retries += 1
         self._failures += 1
+        self._invalidate()
         if self._retries > 10:
             log.error('Number of retries exceeded.')
             sys.exit(1)
@@ -156,7 +157,7 @@ class DbusFroniusService:
     if self._testdata:
         meter_r = json.loads(open('testdata/GetMeterRealtimeData.json').read())
     else:
-        meter_r = requests.get(url = self._url, timeout=10).json()
+        meter_r = requests.get(url = self._url, timeout=2).json()
     latency = time.time() - now
     if self._latency:
         self._latency = (9*self._latency + latency)/10
@@ -184,6 +185,21 @@ class DbusFroniusService:
     self._dbusservice['/Latency'] = self._latency
     log.info("Meter Power: %s, Latency: %.1fms" % (MeterConsumption, self._latency*1000))
     return meter_data
+	
+  def _invalidate(self):
+    # in case we failed to get a response zero out to not get any depending devices to do stuff they shouldn't
+    # set to the wanted level of retries (0 on first failure, 1 ...)
+    if self._retries > 0:
+      self._dbusservice['/Ac/Power'] = 0.0
+      self._dbusservice['/Ac/L1/Current'] = 0.0
+      self._dbusservice['/Ac/L2/Current'] = 0.0
+      self._dbusservice['/Ac/L3/Current'] = 0.0
+      self._dbusservice['/Ac/L1/Power'] = 0.0
+      self._dbusservice['/Ac/L2/Power'] = 0.0
+      self._dbusservice['/Ac/L3/Power'] = 0.0
+      self._dbusservice['/Latency'] = 0
+      log.info("Set Meter Power: 0 because of failure!")
+    return None
 
 
 def main():
